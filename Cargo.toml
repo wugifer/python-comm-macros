@@ -1,9 +1,11 @@
 [package]
 name = "python_comm_macros"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["wugifer <wugifer@>"]
 edition = "2018"
 description = "proc macros for python_comm"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/wugifer/python-comm-macros"
+documentation = "https://docs.rs/python-comm-macros/"
 
 [dependencies]
