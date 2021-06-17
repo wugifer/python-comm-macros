@@ -14,6 +14,10 @@
 //! assert_eq!(test_name(), "test_name");
 //! ```
 //!
+//! ## Bug
+//!
+//! 有 auto_func_name 属性的函数, 用 /// 产生的文档注释在 cargo doc 中为空
+//!
 
 use proc_macro::TokenStream;
 
