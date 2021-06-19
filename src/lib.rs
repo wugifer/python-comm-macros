@@ -16,7 +16,11 @@
 //!
 //! ## Bug
 //!
-//! 有 auto_func_name 属性的函数, 用 /// 产生的文档注释在 cargo doc 中为空
+//! 有 auto_func_name 属性的函数, 用 /// 产生的文档注释在 cargo doc 中为空, 改为 auto_func_name2 解决
+//! 
+//! 有 auto_func_name 属性的函数, 用 //! 在内部注释导致 rust 报错时找不到代码
+//!
+//! 有 auto_func_name2 属性的函数, 内部不允许用 //! 生成注释
 //!
 
 use proc_macro::TokenStream;
@@ -30,4 +34,11 @@ pub fn auto_func_name(_args: TokenStream, func: TokenStream) -> TokenStream {
     //* 自动设置 __func__ 变量为当前函数名
 
     afn::auto_func_name(func)
+}
+
+#[proc_macro_attribute]
+pub fn auto_func_name2(_args: TokenStream, func: TokenStream) -> TokenStream {
+    //* 自动设置 __func__ 变量为当前函数名
+
+    afn::auto_func_name2(func)
 }
