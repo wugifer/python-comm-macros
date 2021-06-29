@@ -39,9 +39,19 @@ fn test4() {
     //! auto_func_name2 不允许这行注释, 直接报错 an inner attribute is not permitted in this context
 }
 
-/// test4, 内部 //! 的注释和这里的合并了
+/// test5, 内部 //! 的注释和这里的合并了
 fn test5() {
     //! auto_func_name2 不允许这行注释, 直接报错 an inner attribute is not permitted in this context
+}
+
+/// test6
+///
+/// &mut || 使得 auto_func_name2 不能给出准确的报错, 但可以定位到 test6()
+#[auto_func_name2]
+fn test6() {
+    &mut |x: i8| x;
+
+    // y
 }
 
 fn main() {
@@ -51,4 +61,5 @@ fn main() {
     test3();
     test4();
     test5();
+    test6();
 }

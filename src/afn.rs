@@ -26,8 +26,14 @@ pub fn auto_func_name(function: TokenStream) -> TokenStream {
     caller.into()
 }
 
-pub fn auto_func_name2(function: TokenStream) -> TokenStream {
+pub fn auto_func_name2(args: TokenStream, function: TokenStream) -> TokenStream {
     //* 自动设置 __func__ 变量为当前函数名
+
+    let debug = args.to_string() == "\"debug\"";
+    if debug {
+        println!("before: {:?}", function);
+    }
+
     let function_clone = function.clone();
 
     // 解析 function, 获取 function name
@@ -58,6 +64,10 @@ pub fn auto_func_name2(function: TokenStream) -> TokenStream {
         }
 
         all_stream.extend(TokenStream::from(token_clone));
+    }
+
+    if debug {
+        println!(" after: {:?}", all_stream);
     }
 
     all_stream
