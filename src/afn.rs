@@ -2,9 +2,8 @@ use proc_macro::{Delimiter, Group, TokenStream, TokenTree};
 use quote::quote;
 use syn::{parse_macro_input, ItemFn};
 
+/// 自动设置 __func__ 变量为当前函数名
 pub fn auto_func_name(function: TokenStream) -> TokenStream {
-    //* 自动设置 __func__ 变量为当前函数名
-
     let func = parse_macro_input!(function as ItemFn);
     let func_vis = &func.vis; // like pub
     let sig = &func.sig;
@@ -26,9 +25,8 @@ pub fn auto_func_name(function: TokenStream) -> TokenStream {
     caller.into()
 }
 
+/// 自动设置 __func__ 变量为当前函数名
 pub fn auto_func_name2(args: TokenStream, function: TokenStream) -> TokenStream {
-    //* 自动设置 __func__ 变量为当前函数名
-
     let debug = args.to_string() == "\"debug\"";
     if debug {
         println!("before: {:?}", function);

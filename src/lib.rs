@@ -27,18 +27,14 @@ use proc_macro::TokenStream;
 
 mod afn;
 
-/// 在函数中自动设置局部变量 \_\_func\_\_ 为当前函数名
-
+/// 自动设置 __func__ 变量为当前函数名
 #[proc_macro_attribute]
 pub fn auto_func_name(_args: TokenStream, func: TokenStream) -> TokenStream {
-    //* 自动设置 __func__ 变量为当前函数名
-
     afn::auto_func_name(func)
 }
 
+/// 自动设置 __func__ 变量为当前函数名
 #[proc_macro_attribute]
 pub fn auto_func_name2(args: TokenStream, func: TokenStream) -> TokenStream {
-    //* 自动设置 __func__ 变量为当前函数名
-
     afn::auto_func_name2(args, func)
 }
