@@ -107,12 +107,11 @@ pub fn as_python_dict(input: TokenStream) -> TokenStream {
                         .get_item(stringify!(#ident))
                         .ok_or(raise_error!(
                             "raw",
-                            "py",
                             __func__,
                             format!(r#"get_item("{}") error"#, stringify!(#ident))
                         ))?
                         .extract()
-                        .or_else(|err| raise_error!("py", __func__, "\n", err))?,
+                        .or_else(|err| raise_error!(__func__, "\n", err))?,
                 )
             });
 
@@ -172,7 +171,7 @@ pub fn as_python_dict(input: TokenStream) -> TokenStream {
                     #[auto_func_name]
                     fn extract(obj: &pyo3::types::PyAny) -> Result<Self, pyo3::PyErr> {
                         let pyobj = #py_ident::extract(obj)
-                            .or_else(|err| raise_error!("py", __func__, "\n", err))?;
+                            .or_else(|err| raise_error!("py", __func__, "for #struct_ident", "\n", err))?;
                         Ok(pyobj.into())
                     }
                 }
@@ -185,11 +184,11 @@ pub fn as_python_dict(input: TokenStream) -> TokenStream {
                     }
                 }
 
-                impl pyo3::FromPyObject<'_> for #py_ident {
+                impl #py_ident {
                     #[auto_func_name]
-                    fn extract(obj: &pyo3::types::PyAny) -> Result<Self, pyo3::PyErr> {
+                    fn extract(obj: &pyo3::types::PyAny) -> Result<Self, anyhow::Error> {
                         let dict: &pyo3::types::PyDict = obj.cast_as()
-                            .or_else(|err| raise_error!("py", __func__, "\n", err))?;
+                            .or_else(|err| raise_error!(__func__, "for #py_ident", "\n", err))?;
                         Ok(Self {
                             #field_from
                         })
@@ -245,9 +244,9 @@ pub fn as_python_object(input: TokenStream) -> TokenStream {
                 quote!(
                     #ident: obj
                         .getattr(stringify!(#ident))
-                        .or_else(|err| raise_error!("py", __func__, "\n", err))?
+                        .or_else(|err| raise_error!(__func__, "\n", err))?
                         .extract()
-                        .or_else(|err| raise_error!("py", __func__, "\n", err))?,
+                        .or_else(|err| raise_error!(__func__, "\n", err))?,
                 )
             });
 
@@ -298,9 +297,9 @@ pub fn as_python_object(input: TokenStream) -> TokenStream {
                     }
                 }
 
-                impl pyo3::FromPyObject<'_> for #py_ident {
+                impl #py_ident {
                     #[auto_func_name]
-                    fn extract(obj: &pyo3::types::PyAny) -> Result<Self, pyo3::PyErr> {
+                    fn extract(obj: &pyo3::types::PyAny) -> Result<Self, anyhow::Error> {
                         Ok(Self {
                             #field_from
                         })
@@ -362,7 +361,17 @@ pub fn as_sql_table(input: TokenStream) -> TokenStream {
             //     quote!(#ident: row.#i, )
             // });
 
-            let field_name = map_fields(&fields, |(_i, ident, _ty, _last)| quote!(#ident, ));
+            let field_name1 = map_fields(&fields, |(_i, ident, _ty, _last)| quote!(#ident, ));
+            let mut field_name2 = String::new();
+
+            let _field_name2 = map_fields(&fields, |(_i, ident, _ty, last)| {
+                if last {
+                    field_name2 += &format!(r"`{}`", ident);
+                } else {
+                    field_name2 += &format!(r"`{}`, ", ident);
+                }
+                quote!(())
+            });
 
             let mut field_set1_s = String::new();
             let mut field_set3_s = String::new();
@@ -406,8 +415,7 @@ pub fn as_sql_table(input: TokenStream) -> TokenStream {
                 impl #struct_ident {
                     /// 字段名
                     pub fn field_names() -> &'static str {
-                        let x: &[_] = &[' ', ','];
-                        stringify!(#field_name).trim_end_matches(x)
+                        #field_name2
                     }
 
                     /// 字段名, 含替换规则
@@ -419,9 +427,28 @@ pub fn as_sql_table(input: TokenStream) -> TokenStream {
                         names
                     }
 
+                    /// 获取全部记录
+                    #[auto_func_name]
+                    pub fn get_all_rows(stmt: String) -> Result<Vec<Self>, anyhow::Error>
+                    {
+                        // 全部结果
+                        let results = GlobalDbPool::get()
+                            .or_else(|err| raise_error!(__func__, "\n", err))?
+                            .exec_opt(stmt, mysql::params::Params::Empty)
+                            .or_else(|err| raise_error!(__func__, "\n", err))?;
+                        // 如果有 FromRowError, 抛出异常, 这样后续可以 unwrap (map 中不可抛出异常)
+                        for result in &results {
+                            if let Err(err) = result {
+                                return raise_error!(__func__, "\n", err);
+                            }
+                        }
+                        // 已确认 x 不含异常
+                        Ok(results.into_iter().map(|x| x.unwrap()).collect())
+                    }
+
                     /// 获取多个记录
                     #[auto_func_name]
-                    pub fn get_multi<P>(stmt: String, params: P) -> Result<Vec<Self>, anyhow::Error>
+                    pub fn get_multi_rows<P>(stmt: String, params: P) -> Result<Vec<Self>, anyhow::Error>
                     where
                         P: Into<mysql::params::Params>,
                     {
@@ -442,7 +469,7 @@ pub fn as_sql_table(input: TokenStream) -> TokenStream {
 
                     /// 获取单个记录
                     #[auto_func_name]
-                    pub fn get_single<P>(stmt: String, params: P) -> Result<Option<Self>, anyhow::Error>
+                    pub fn get_single_row<P>(stmt: String, params: P) -> Result<Option<Self>, anyhow::Error>
                     where
                         P: Into<mysql::params::Params>,
                     {
@@ -486,7 +513,7 @@ pub fn as_sql_table(input: TokenStream) -> TokenStream {
                     fn from_row_opt(mut row: mysql::Row) -> Result<Self, mysql::FromRowError> {
                         #field_from_row
                         Ok(Self {
-                            #field_name
+                            #field_name1
                         })
                     }
                 }
