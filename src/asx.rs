@@ -413,29 +413,32 @@ pub fn as_sql_table(input: TokenStream) -> TokenStream {
             // 汇总代码
             let result = quote!(
                 impl #struct_ident {
-                    /// 字段名
-                    pub fn field_names() -> &'static str {
-                        #field_name2
-                    }
-
                     /// 字段名, 含替换规则
-                    pub fn field_names_replace(pat: &[(&str, &str)]) -> String {
-                        let mut names = Self::field_names().to_string();
-                        for (from_str, to_str) in pat {
+                    pub fn field_names() -> String {
+                        let mut names = #field_name2.to_string();
+                        for (from_str, to_str) in &Self::replace() {
                             names = names.replace(from_str, to_str);
                         }
                         names
                     }
 
-                    /// 获取全部记录
+                    /// 获取多个记录, 含带参条件
                     #[auto_func_name]
-                    pub fn get_all_rows(stmt: String) -> Result<Vec<Self>, anyhow::Error>
+                    pub fn get_rows<P>(where_and_more: &str, params: P) -> Result<Vec<Self>, anyhow::Error>
+                    where
+                        P: Into<mysql::params::Params>,
                     {
+                        let sql = format!(
+                            "SELECT {} FROM {} {}",
+                            Self::field_names(),
+                            Self::table_name(),
+                            where_and_more
+                        );
                         // 全部结果
                         let results = GlobalDbPool::get()
                             .or_else(|err| raise_error!(__func__, "\n", err))?
-                            .exec_opt(stmt, mysql::params::Params::Empty)
-                            .or_else(|err| raise_error!(__func__, "\n", err))?;
+                            .exec_opt(&sql, params)
+                            .or_else(|err| raise_error!(__func__, &sql, "\n", err))?;
                         // 如果有 FromRowError, 抛出异常, 这样后续可以 unwrap (map 中不可抛出异常)
                         for result in &results {
                             if let Err(err) = result {
@@ -446,17 +449,21 @@ pub fn as_sql_table(input: TokenStream) -> TokenStream {
                         Ok(results.into_iter().map(|x| x.unwrap()).collect())
                     }
 
-                    /// 获取多个记录
+                    /// 获取多个记录, 不含带参参数
                     #[auto_func_name]
-                    pub fn get_multi_rows<P>(stmt: String, params: P) -> Result<Vec<Self>, anyhow::Error>
-                    where
-                        P: Into<mysql::params::Params>,
+                    pub fn get_rows2(where_and_more: &str) -> Result<Vec<Self>, anyhow::Error>
                     {
+                        let sql = format!(
+                            "SELECT {} FROM {} {}",
+                            Self::field_names(),
+                            Self::table_name(),
+                            where_and_more
+                        );
                         // 全部结果
                         let results = GlobalDbPool::get()
                             .or_else(|err| raise_error!(__func__, "\n", err))?
-                            .exec_opt(stmt, params)
-                            .or_else(|err| raise_error!(__func__, "\n", err))?;
+                            .exec_opt(&sql, mysql::params::Params::Empty)
+                            .or_else(|err| raise_error!(__func__, &sql, "\n", err))?;
                         // 如果有 FromRowError, 抛出异常, 这样后续可以 unwrap (map 中不可抛出异常)
                         for result in &results {
                             if let Err(err) = result {
@@ -467,16 +474,43 @@ pub fn as_sql_table(input: TokenStream) -> TokenStream {
                         Ok(results.into_iter().map(|x| x.unwrap()).collect())
                     }
 
-                    /// 获取单个记录
+                    /// 获取单个记录, 含带参条件
                     #[auto_func_name]
-                    pub fn get_single_row<P>(stmt: String, params: P) -> Result<Option<Self>, anyhow::Error>
+                    pub fn get_row<P>(where_and_more: &str, params: P) -> Result<Option<Self>, anyhow::Error>
                     where
                         P: Into<mysql::params::Params>,
                     {
+                        let sql = format!(
+                            "SELECT {} FROM {} {} LIMIT 1",
+                            Self::field_names(),
+                            Self::table_name(),
+                            where_and_more
+                        );
                         match GlobalDbPool::get()
                             .or_else(|err| raise_error!(__func__, "\n", err))?
-                            .exec_first_opt(stmt, params)
+                            .exec_first_opt(&sql, params)
+                            .or_else(|err| raise_error!(__func__, &sql, "\n", err))?
+                        {
+                            Some(Ok(result)) => Ok(Some(result)),
+                            Some(Err(err)) => raise_error!(__func__, "\n", err),
+                            None => Ok(None),
+                        }
+                    }
+
+                    /// 获取单个记录, 不含带参参数
+                    #[auto_func_name]
+                    pub fn get_row2(where_and_more: &str) -> Result<Option<Self>, anyhow::Error>
+                    {
+                        let sql = format!(
+                            "SELECT {} FROM {} {} LIMIT 1",
+                            Self::field_names(),
+                            Self::table_name(),
+                            where_and_more
+                        );
+                        match GlobalDbPool::get()
                             .or_else(|err| raise_error!(__func__, "\n", err))?
+                            .exec_first_opt(&sql, mysql::params::Params::Empty)
+                            .or_else(|err| raise_error!(__func__, &sql, "\n", err))?
                         {
                             Some(Ok(result)) => Ok(Some(result)),
                             Some(Err(err)) => raise_error!(__func__, "\n", err),
@@ -490,14 +524,15 @@ pub fn as_sql_table(input: TokenStream) -> TokenStream {
                         let mut sql = GlobalDbPool::get().or_else(|err| raise_error!(__func__, "\n", err))?;
                         if self.id != 0 {
                             sql.exec_drop(
-                                format!("UPDATE finance_net SET {}", #field_set1_s),
+                                format!("UPDATE {} SET {}", Self::table_name(), #field_set1_s),
                                 params! {#field_set2},
                             )
                             .or_else(|err| raise_error!(__func__, "\n", err))?;
                         } else {
                             sql.exec_drop(
                                 format!(
-                                    "INSERT INTO finance_net ({}) VALUES ({})",
+                                    "INSERT INTO {} ({}) VALUES ({})",
+                                    Self::table_name(),
                                     #field_set3_s,
                                     #field_set4_s,
                                 ),
