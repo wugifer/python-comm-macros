@@ -366,9 +366,9 @@ pub fn as_sql_table(input: TokenStream) -> TokenStream {
 
             let _field_name2 = map_fields(&fields, |(_i, ident, _ty, last)| {
                 if last {
-                    field_name2 += &format!(r"`{}`", ident);
+                    field_name2 += &format!("`{}`", ident);
                 } else {
-                    field_name2 += &format!(r"`{}`, ", ident);
+                    field_name2 += &format!("`{}`, ", ident);
                 }
                 quote!(())
             });
@@ -379,12 +379,12 @@ pub fn as_sql_table(input: TokenStream) -> TokenStream {
 
             let _field_set1 = map_fields(&fields, |(_i, ident, _ty, last)| {
                 if last {
-                    field_set1_s += &format!("{}=:{}", ident, ident);
-                    field_set3_s += &format!("\"{}\"", ident);
+                    field_set1_s += &format!("`{}`=:{}", ident, ident);
+                    field_set3_s += &format!("`{}`", ident);
                     field_set4_s += &format!(":{}", ident);
                 } else {
-                    field_set1_s += &format!("{}=:{}, ", ident, ident);
-                    field_set3_s += &format!("\"{}\", ", ident);
+                    field_set1_s += &format!("`{}`=:{}, ", ident, ident);
+                    field_set3_s += &format!("`{}`, ", ident);
                     field_set4_s += &format!(":{}, ", ident);
                 }
                 quote!(())
@@ -520,27 +520,26 @@ pub fn as_sql_table(input: TokenStream) -> TokenStream {
 
                     /// 保存
                     #[auto_func_name]
-                    pub fn save(&self) -> Result<(), anyhow::Error> {
+                    pub fn save(&self) -> Result<Option<u64>, anyhow::Error> {
                         let mut sql = GlobalDbPool::get().or_else(|err| raise_error!(__func__, "\n", err))?;
                         if self.id != 0 {
-                            sql.exec_drop(
-                                format!("UPDATE {} SET {}", Self::table_name(), #field_set1_s),
-                                params! {#field_set2},
-                            )
-                            .or_else(|err| raise_error!(__func__, "\n", err))?;
+                            let text = format!("UPDATE {} SET {}", Self::table_name(), #field_set1_s);
+                            sql
+                                .exec_drop(&text, params! {#field_set2})
+                                .or_else(|err| raise_error!(__func__, &text, "\n", err))?;
+                            Ok(None)
                         } else {
-                            sql.exec_drop(
-                                format!(
-                                    "INSERT INTO {} ({}) VALUES ({})",
-                                    Self::table_name(),
-                                    #field_set3_s,
-                                    #field_set4_s,
-                                ),
-                                params! {#field_set5},
-                            )
-                            .or_else(|err| raise_error!(__func__, "\n", err))?;
+                            let text = format!(
+                                "INSERT INTO {} ({}) VALUES ({})",
+                                Self::table_name(),
+                                #field_set3_s,
+                                #field_set4_s,
+                            );
+                            let ret = sql
+                                .exec_iter(&text, params! {#field_set5})
+                                .or_else(|err| raise_error!(__func__, &text, "\n", err))?;
+                            Ok(ret.last_insert_id())
                         }
-                        Ok(())
                     }
                 }
 
