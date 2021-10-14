@@ -57,7 +57,7 @@ dependencies = [
 
 [[package]]
 name = "python_comm_macros"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "chrono",
  "proc-macro2",
