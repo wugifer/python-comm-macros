@@ -163,10 +163,12 @@ pub fn as_python_dict(input: TokenStream) -> TokenStream {
 
             // 汇总代码
             let result = quote!(
+                #[cfg(feature = "use_pyo3")]
                 struct #py_ident {
                     #field_def
                 }
 
+                #[cfg(feature = "use_pyo3")]
                 impl pyo3::FromPyObject<'_> for #struct_ident {
                     #[auto_func_name]
                     fn extract(obj: &pyo3::types::PyAny) -> Result<Self, pyo3::PyErr> {
@@ -176,6 +178,7 @@ pub fn as_python_dict(input: TokenStream) -> TokenStream {
                     }
                 }
 
+                #[cfg(feature = "use_pyo3")]
                 impl pyo3::IntoPy<pyo3::PyObject> for #struct_ident {
                     fn into_py(self, python: pyo3::Python) -> pyo3::PyObject {
                         let dict = pyo3::types::PyDict::new(python);
@@ -184,6 +187,7 @@ pub fn as_python_dict(input: TokenStream) -> TokenStream {
                     }
                 }
 
+                #[cfg(feature = "use_pyo3")]
                 impl #py_ident {
                     #[auto_func_name]
                     fn extract(obj: &pyo3::types::PyAny) -> Result<Self, anyhow::Error> {
@@ -195,6 +199,7 @@ pub fn as_python_dict(input: TokenStream) -> TokenStream {
                     }
                 }
 
+                #[cfg(feature = "use_pyo3")]
                 impl Into<#struct_ident> for #py_ident {
                     fn into(self) -> #struct_ident {
                         #struct_ident {
@@ -275,10 +280,12 @@ pub fn as_python_object(input: TokenStream) -> TokenStream {
 
             // 汇总代码
             let result = quote!(
+                #[cfg(feature = "use_pyo3")]
                 struct #py_ident {
                     #field_def
                 }
 
+                #[cfg(feature = "use_pyo3")]
                 impl pyo3::FromPyObject<'_> for #struct_ident {
                     #[auto_func_name]
                     fn extract(obj: &pyo3::types::PyAny) -> Result<Self, pyo3::PyErr> {
@@ -287,6 +294,7 @@ pub fn as_python_object(input: TokenStream) -> TokenStream {
                     }
                 }
 
+                #[cfg(feature = "use_pyo3")]
                 impl pyo3::IntoPy<pyo3::PyObject> for #struct_ident {
                     fn into_py(self, python: pyo3::Python) -> pyo3::PyObject {
                         let out = python_comm::types::PyClassObject {}.into_py(python);
@@ -297,6 +305,7 @@ pub fn as_python_object(input: TokenStream) -> TokenStream {
                     }
                 }
 
+                #[cfg(feature = "use_pyo3")]
                 impl #py_ident {
                     #[auto_func_name]
                     fn extract(obj: &pyo3::types::PyAny) -> Result<Self, anyhow::Error> {
@@ -306,6 +315,7 @@ pub fn as_python_object(input: TokenStream) -> TokenStream {
                     }
                 }
 
+                #[cfg(feature = "use_pyo3")]
                 impl Into<#struct_ident> for #py_ident {
                     fn into(self) -> #struct_ident {
                         #struct_ident {
