@@ -7,6 +7,13 @@ use proc_macro::TokenStream;
 use quote::quote;
 
 mod afn;
+mod asm;
+
+/// AsSqlModel
+#[proc_macro_derive(AsSqlModel)]
+pub fn as_sql_model(input: TokenStream) -> TokenStream {
+    asm::as_sql_model(input)
+}
 
 /// Create a local variable __func__ = "xxx" in fn xxx()
 ///
