@@ -18,7 +18,7 @@ where
                     .as_ref()
                     .unwrap()
                     .to_string()
-                    .ends_with("_default")
+                    .starts_with("_renames_")
             })
             .map(|x| {
                 (
@@ -51,6 +51,41 @@ where
             })
             .flatten(),
     )
+}
+
+/// 在全部字段上寻找重命名字段
+fn map_fields_get_rename(fields: &Fields) -> TokenStream2 {
+    for field in fields {
+        let ident = &field.ident;
+        let s = ident.as_ref().unwrap().to_string();
+        if s.starts_with("_renames_") {
+            return quote!(#ident: 0);
+        }
+    }
+
+    quote!()
+}
+
+/// 在全部字段上寻找重命名字段
+fn map_fields_rename(fields: &Fields, name: &str) -> String {
+    for field in fields {
+        let s = field.ident.as_ref().unwrap().to_string();
+        if !s.starts_with("_renames_") {
+            continue;
+        }
+
+        let mut found = false;
+        for token in s.split("_r_") {
+            if found {
+                return token.to_string();
+            }
+            if token == name {
+                found = true;
+            }
+        }
+    }
+
+    name.to_string()
 }
 
 pub fn as_sql_model(input: TokenStream) -> TokenStream {
@@ -113,76 +148,157 @@ pub fn as_sql_model(input: TokenStream) -> TokenStream {
                 quote!(())
             });
 
+            let rename_field = map_fields_get_rename(&fields);
+
+            // C-有逗号结尾, Q-有双引号, B-有反引号, I-去掉 id, P-作为参数, E-赋值, V-Value, EE-相等
+
             // a, b, c
-            let fields_strip_comma =
-                map_fields_and_join(&field_idents, |ident| Some(quote!(#ident)), quote!(, ));
+            // let make_fields =
+            //     map_fields_and_join(&field_idents, |ident| Some(quote!(#ident)), quote!(, ));
 
             // a, b, c,
-            let fields_with_comma =
+            let make_fields_c =
                 map_fields_and_join(&field_idents, |ident| Some(quote!(#ident, )), quote!());
 
             // `a`, `b`, `c`
-            let fields_with_backquote = {
+            let make_fields_b = {
                 let code = field_names
                     .iter()
-                    .map(|x| format!("`{}`", x))
-                    .collect::<Vec<String>>()
-                    .join(", ");
-                quote!(#code)
-            };
-            let fields_with_backquote_without_id = {
-                let code = field_names
-                    .iter()
-                    .filter(|x| x.as_str() != "id")
-                    .map(|x| format!("`{}`", x))
+                    .map(|x| {
+                        let real = map_fields_rename(&fields, &x);
+                        format!("`{}`", real)
+                    })
                     .collect::<Vec<String>>()
                     .join(", ");
                 quote!(#code)
             };
 
-            // :a, :b, :c
-            let field_saves = {
-                let code = field_names
-                    .iter()
-                    .map(|x| format!(":{}", x))
-                    .collect::<Vec<String>>()
-                    .join(", ");
-                quote!(#code)
-            };
-            let field_saves_without_id = {
+            // `a`, `b`, `c`
+            let make_fields_bi = {
                 let code = field_names
                     .iter()
                     .filter(|x| x.as_str() != "id")
-                    .map(|x| format!(":{}", x))
+                    .map(|x| {
+                        let real = map_fields_rename(&fields, &x);
+                        format!("`{}`", real)
+                    })
                     .collect::<Vec<String>>()
                     .join(", ");
                 quote!(#code)
             };
 
             // a=:a, b=:b, c=:c
-            let field_updates = {
+            let make_fields_e = {
                 let code = field_names
                     .iter()
-                    .map(|x| format!("{}=:{}", x, x))
-                    .collect::<Vec<String>>()
-                    .join(", ");
-                quote!(#code)
-            };
-            let field_updates_without_id = {
-                let code = field_names
-                    .iter()
-                    .filter(|x| x.as_str() != "id")
-                    .map(|x| format!("{}=:{}", x, x))
+                    .map(|x| {
+                        let real = map_fields_rename(&fields, &x);
+                        format!("{}=:{}", real, real)
+                    })
                     .collect::<Vec<String>>()
                     .join(", ");
                 quote!(#code)
             };
 
+            // a=:a, b=:b, c=:c
+            let make_fields_ei = {
+                let code = field_names
+                    .iter()
+                    .filter(|x| x.as_str() != "id")
+                    .map(|x| {
+                        let real = map_fields_rename(&fields, &x);
+                        format!("{}=:{}", real, real)
+                    })
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                quote!(#code)
+            };
+
+            // self.a==other.a && self.b==other.b
+            let make_fields_ee = map_fields_and_join(
+                &field_idents,
+                |ident| {
+                    Some(quote!(
+                         self.#ident == other.#ident
+                    ))
+                },
+                quote!(&&),
+            );
+
+            // self.a==other.a && self.b==other.b
+            let make_fields_eei = map_fields_and_join(
+                &field_idents,
+                |ident| {
+                    if ident != "id" {
+                        Some(quote!(self.#ident == other.#ident))
+                    } else {
+                        None
+                    }
+                },
+                quote!(&&),
+            );
+
+            // :a, :b, :c
+            let make_fields_p = {
+                let code = field_names
+                    .iter()
+                    .map(|x| {
+                        let real = map_fields_rename(&fields, &x);
+                        format!(":{}", real)
+                    })
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                quote!(#code)
+            };
+
+            // :a, :b, :c
+            let make_fields_pi = {
+                let code = field_names
+                    .iter()
+                    .filter(|x| x.as_str() != "id")
+                    .map(|x| {
+                        let real = map_fields_rename(&fields, &x);
+                        format!(":{}", real)
+                    })
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                quote!(#code)
+            };
+
+            // "a", "b", "c"
+            let make_fields_q = {
+                let code = field_names
+                    .iter()
+                    .map(|x| {
+                        let real = map_fields_rename(&fields, &x);
+                        format!("\"{}\"", real)
+                    })
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                quote!(#code)
+            };
+
+            // "a", "b", "c",
+            let make_fields_qc = {
+                let code = field_names
+                    .iter()
+                    .map(|x| {
+                        let real = map_fields_rename(&fields, &x);
+                        format!("\"{}\", ", real)
+                    })
+                    .collect::<Vec<String>>()
+                    .join("");
+                quote!(#code)
+            };
+
             // vec![("a", self.a), ("b", self.b)]
-            let field_values = {
+            let make_fields_v = {
                 let code = map_fields_and_join(
                     &field_idents,
-                    |ident| Some(quote!((stringify!(#ident), self.#ident.clone().into()))),
+                    |ident| {
+                        let real = map_fields_rename(&fields, &ident.to_string());
+                        Some(quote!((stringify!(#real), self.#ident.clone().into())))
+                    },
                     quote!(,),
                 );
                 quote!(
@@ -190,12 +306,15 @@ pub fn as_sql_model(input: TokenStream) -> TokenStream {
                     mysql::params::Params::from(v)
                 )
             };
-            let field_values_without_id = {
+
+            // vec![("a", self.a), ("b", self.b)]
+            let make_fields_vi = {
                 let code = map_fields_and_join(
                     &field_idents,
                     |ident| {
                         if ident != "id" {
-                            Some(quote!((stringify!(#ident), self.#ident.clone().into())))
+                            let real = map_fields_rename(&fields, &ident.to_string());
+                            Some(quote!((#real, self.#ident.clone().into())))
                         } else {
                             None
                         }
@@ -208,99 +327,77 @@ pub fn as_sql_model(input: TokenStream) -> TokenStream {
                 )
             };
 
-            // self.a==other.a && self.b==other.b
-            let field_equal = map_fields_and_join(
-                &field_idents,
-                |ident| {
-                    Some(quote!(
-                         self.#ident == other.#ident
-                    ))
-                },
-                quote!(&&),
-            );
-            let field_equal_without_id = map_fields_and_join(
-                &field_idents,
-                |ident| {
-                    if ident != "id" {
-                        Some(quote!(self.#ident == other.#ident))
-                    } else {
-                        None
-                    }
-                },
-                quote!(&&),
-            );
-
             // 汇总代码
             let result = quote!(
                 impl #struct_ident {
                     /// 比较两个 obj
                     pub fn equal(&self, other: &Self) -> bool {
-                        #field_equal
+                        #make_fields_ee
                     }
 
                     /// 比较两个 obj, 排除 id
                     pub fn equal_without_id(&self, other: &Self) -> bool {
-                        #field_equal_without_id
-                    }
-
-                    /// 字段名: a, b, c
-                    pub fn fields_strip_comma() -> &'static str {
-                        stringify!(#fields_strip_comma)
-                    }
-
-                    /// 字段名: a, b, c,
-                    pub fn fields_with_comma() -> &'static str {
-                        stringify!(#fields_with_comma)
-                    }
-
-                    /// 字段保存: :a, :b
-                    pub fn field_saves() -> &'static str {
-                        #field_saves
-                    }
-
-                    /// 字段更新: a=:a, b=:b
-                    pub fn field_updates() -> &'static str {
-                        #field_updates
-                    }
-
-                    /// 字段内容
-                    pub fn field_values(&self) -> mysql::params::Params {
-                        #field_values
+                        #make_fields_eei
                     }
 
                     #assign
                 }
 
                 impl SqlModelPlus for #struct_ident {
-                    /// 字段保存, 排除 id: :a, :b
-                    fn field_saves_without_id() -> &'static str {
-                        #field_saves_without_id
-                    }
-
-                    /// 字段更新, 排除 id: a=:a, b=:b
-                    fn field_updates_without_id() -> &'static str {
-                        #field_updates_without_id
-                    }
-
-                    /// 字段内容, 排除 id
-                    fn field_values_without_id(&self) -> mysql::params::Params {
-                        #field_values_without_id
-                    }
-
-                    /// 字段名, 排除 id: `a`, `b`, `c`
-                    fn fields_with_backquote() -> &'static str {
-                        #fields_with_backquote
-                    }
-
-                    /// 字段名, 排除 id: `a`, `b`, `c`
-                    fn fields_with_backquote_without_id() -> &'static str {
-                        #fields_with_backquote_without_id
-                    }
-
                     /// 返回加锁的 DbPool, 注意类名写死了, 使用者需命名并引入 WhoCreateDbPool
                     #[auto_func_name]
                     fn lock() -> Result<std::sync::MutexGuard<'static, python_comm::use_sql::DbPool>, python_comm::use_m::MoreError> {
                         WhoCreateDbPool::lock().m(m!(__func__))
+                    }
+
+                    /// `a`, `b`, `c`
+                    fn make_fields_b() -> &'static str {
+                        #make_fields_b
+                    }
+
+                    /// `a`, `b`, `c`
+                    fn make_fields_bi() -> &'static str {
+                        #make_fields_bi
+                    }
+
+                    /// a=:a, b=:b
+                    fn make_fields_e() -> &'static str {
+                        #make_fields_e
+                    }
+
+                    /// a=:a, b=:b
+                    fn make_fields_ei() -> &'static str {
+                        #make_fields_ei
+                    }
+
+                    /// :a, :b
+                    fn make_fields_p() -> &'static str {
+                        #make_fields_p
+                    }
+
+                    /// :a, :b
+                    fn make_fields_pi() -> &'static str {
+                        #make_fields_pi
+                    }
+
+                    /// "a", "b", "c"
+                    fn make_fields_q() -> &'static str {
+                        #make_fields_q
+                    }
+
+                    /// "a", "b", "c",
+                    fn make_fields_qc() -> &'static str {
+                        #make_fields_qc
+                    }
+
+                    /// vec![("a", self.a), ("b", self.b)]
+                    fn make_fields_v(&self) -> mysql::params::Params {
+                        #make_fields_v
+                    }
+
+                    /// vec![("a", self.a), ("b", self.b)]
+                    fn make_fields_vi(&self) -> mysql::params::Params {
+                        #make_fields_vi
                     }
                 }
 
@@ -308,7 +405,8 @@ pub fn as_sql_model(input: TokenStream) -> TokenStream {
                     fn from_row_opt(mut row: mysql::Row) -> Result<Self, mysql::FromRowError> {
                         #field_from_row
                         Ok(Self {
-                            #fields_with_comma
+                            #make_fields_c
+                            #rename_field
                         })
                     }
                 }
