@@ -8,6 +8,7 @@ use quote::quote;
 
 mod afn;
 mod asm;
+mod lp;
 
 /// AsSqlModel
 #[proc_macro_derive(AsSqlModel)]
@@ -35,4 +36,9 @@ pub fn build_time(_input: TokenStream) -> TokenStream {
         .to_string();
 
     TokenStream::from(quote!(#now))
+}
+
+#[proc_macro_derive(LimitPack)]
+pub fn limit_pack(input: TokenStream) -> TokenStream {
+    lp::limit_pack(input)
 }
