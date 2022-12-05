@@ -13,27 +13,51 @@ where
         fields
             .iter()
             .enumerate()
-            .filter(|x| {
-                !x.1.ident
+            .filter(|(_, x)| {
+                !x.ident
                     .as_ref()
                     .unwrap()
                     .to_string()
                     .starts_with("_renames_")
             })
-            .map(|x| {
-                (
-                    x.0,
-                    x.1.ident.as_ref().unwrap(),
-                    &x.1.ty,
-                    x.0 == fields.len() - 1,
-                )
-            })
+            .map(|(i, x)| (i, x.ident.as_ref().unwrap(), &x.ty, i == fields.len() - 1))
             .map(mapper),
     )
 }
 
 /// 在全部字段上执行并 join
-fn map_fields_and_join<F>(fields: &Vec<Ident>, mapper: F, sep: TokenStream2) -> TokenStream2
+fn map_fields_and_join1<F>(fields: &Fields, mut mapper: F, sep: TokenStream2) -> TokenStream2
+where
+    F: FnMut((usize, &Ident, &Type, bool)) -> Option<TokenStream2>,
+{
+    TokenStream2::from_iter(
+        fields
+            .iter()
+            .enumerate()
+            .filter(|(_, x)| {
+                !x.ident
+                    .as_ref()
+                    .unwrap()
+                    .to_string()
+                    .starts_with("_renames_")
+            })
+            .filter_map(|(i, x)| {
+                mapper((i, x.ident.as_ref().unwrap(), &x.ty, i == fields.len() - 1))
+            })
+            .enumerate()
+            .map(|(i, x)| {
+                if i == 0 {
+                    vec![x]
+                } else {
+                    vec![sep.clone(), x]
+                }
+            })
+            .flatten(),
+    )
+}
+
+/// 在全部字段上执行并 join
+fn map_fields_and_join2<F>(fields: &Vec<Ident>, mapper: F, sep: TokenStream2) -> TokenStream2
 where
     F: FnMut(&Ident) -> Option<TokenStream2>,
 {
@@ -150,15 +174,15 @@ pub fn as_sql_model(input: TokenStream) -> TokenStream {
 
             let rename_field = map_fields_get_rename(&fields);
 
-            // C-有逗号结尾, Q-有双引号, B-有反引号, I-去掉 id, P-作为参数, E-赋值, V-Value, EE-相等
+            // C-有逗号结尾, Q-有双引号, B-有反引号, I-去掉 id, P-作为参数, E-赋值, V-Value, EE-相等, F-函数参数
 
             // a, b, c
             // let make_fields =
-            //     map_fields_and_join(&field_idents, |ident| Some(quote!(#ident)), quote!(, ));
+            //     map_fields_and_join2(&field_idents, |ident| Some(quote!(#ident)), quote!(, ));
 
             // a, b, c,
             let make_fields_c =
-                map_fields_and_join(&field_idents, |ident| Some(quote!(#ident, )), quote!());
+                map_fields_and_join2(&field_idents, |ident| Some(quote!(#ident, )), quote!());
 
             // `a`, `b`, `c`
             let make_fields_b = {
@@ -215,7 +239,7 @@ pub fn as_sql_model(input: TokenStream) -> TokenStream {
             };
 
             // self.a==other.a && self.b==other.b
-            let make_fields_ee = map_fields_and_join(
+            let make_fields_ee = map_fields_and_join2(
                 &field_idents,
                 |ident| {
                     Some(quote!(
@@ -226,7 +250,7 @@ pub fn as_sql_model(input: TokenStream) -> TokenStream {
             );
 
             // self.a==other.a && self.b==other.b
-            let make_fields_eei = map_fields_and_join(
+            let make_fields_eei = map_fields_and_join2(
                 &field_idents,
                 |ident| {
                     if ident != "id" {
@@ -236,6 +260,19 @@ pub fn as_sql_model(input: TokenStream) -> TokenStream {
                     }
                 },
                 quote!(&&),
+            );
+
+            // a:A, b:B, c:C
+            let make_fields_fi = map_fields_and_join1(
+                &fields,
+                |(_i, ident, ty, _last)| {
+                    if ident != "id" {
+                        Some(quote!(#ident: #ty))
+                    } else {
+                        None
+                    }
+                },
+                quote!(,),
             );
 
             // :a, :b, :c
@@ -293,7 +330,7 @@ pub fn as_sql_model(input: TokenStream) -> TokenStream {
 
             // vec![("a", self.a), ("b", self.b)]
             let make_fields_v = {
-                let code = map_fields_and_join(
+                let code = map_fields_and_join2(
                     &field_idents,
                     |ident| {
                         let real = map_fields_rename(&fields, &ident.to_string());
@@ -309,7 +346,7 @@ pub fn as_sql_model(input: TokenStream) -> TokenStream {
 
             // vec![("a", self.a), ("b", self.b)]
             let make_fields_vi = {
-                let code = map_fields_and_join(
+                let code = map_fields_and_join2(
                     &field_idents,
                     |ident| {
                         if ident != "id" {
@@ -339,6 +376,13 @@ pub fn as_sql_model(input: TokenStream) -> TokenStream {
                     pub fn equal_without_id(&self, other: &Self) -> bool {
                         #make_fields_eei
                     }
+
+					#[auto_func_name]
+					/// 保存
+					pub fn create_with(#make_fields_fi) -> Result<Option<u64>, MoreError> {
+						let id = 0;
+						Self {#make_fields_c}.create().m(m!(__func__))
+					}
 
                     #assign
                 }
