@@ -1,6 +1,6 @@
 [package]
 name = "python_comm_macros"
-version = "0.3.4"
+version = "0.3.5"
 authors = ["wugifer <wugifer@>"]
 edition = "2021"
 description = "proc macros for python_comm"

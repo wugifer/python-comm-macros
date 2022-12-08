@@ -27,17 +27,17 @@ fn test5() {
 /// test6
 ///
 /// &mut || 使得 auto_func_name 不能给出准确的报错, 但可以定位到 test6()
-#[auto_func_name]
-fn test6() {
-    &mut |x: i8| x;
+// #[auto_func_name]
+// fn test6() {
+//     &mut |x: i8| x;
 
-    // y
-}
+//     // y
+// }
 
 fn main() {
     test0();
     test3();
     test4();
     test5();
-    test6();
+    // test6();
 }

@@ -10,8 +10,13 @@ mod afn;
 mod asm;
 mod lp;
 
+// #[table(name="")]
+// #[column(auto="", key="", name="", type="")]
+//    auto=y => AUTO_INCREMENT
+//    key="" | PRIMARY | UNIQUE
+
 /// AsSqlModel
-#[proc_macro_derive(AsSqlModel)]
+#[proc_macro_derive(AsSqlModel, attributes(table, column))]
 pub fn as_sql_model(input: TokenStream) -> TokenStream {
     asm::as_sql_model(input)
 }
