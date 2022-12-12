@@ -69,10 +69,10 @@ pub fn as_sql_model(input: TokenStream) -> TokenStream {
     let make_fields_b = table.make_fields_string("`", "`", ", ", true); // `a`, `b`, `c`
     let make_fields_bi = table.make_fields_string("`", "`", ", ", false); // `a`, `b`, `c`
     let make_fields_c = table.make_fields_c();
-    let make_fields_e = table.make_fields_string2("", "=:", "", ", ", true); // a=:a, b=:b, c=:c
+    let make_fields_e = table.make_fields_string2("`", "`=:", "", ", ", true); // a=:a, b=:b, c=:c
     let make_fields_ee = table.make_fields_ee(true);
     let make_fields_eei = table.make_fields_ee(false);
-    let make_fields_ei = table.make_fields_string2("", "=:", "", ", ", false); // a=:a, b=:b, c=:c
+    let make_fields_ei = table.make_fields_string2("`", "`=:", "", ", ", false); // a=:a, b=:b, c=:c
     let make_fields_fi = table.make_fields_fi();
     let make_fields_from_row = table.make_fields_from_row();
     let make_fields_p = table.make_fields_string(":", "", ", ", true); // :a, :b, :c
