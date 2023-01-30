@@ -2,13 +2,16 @@
 //! macros for python-comm
 //!
 
-use chrono::{Duration, Utc};
-use proc_macro::TokenStream;
-use quote::quote;
+use {
+    chrono::{Duration, Utc},
+    proc_macro::TokenStream,
+    quote::quote,
+};
 
 mod afn;
 mod asm;
 mod lp;
+mod qa;
 
 // #[table(name="")]
 // #[column(auto="", key="", name="", type="")]
@@ -46,4 +49,10 @@ pub fn build_time(_input: TokenStream) -> TokenStream {
 #[proc_macro_derive(LimitPack)]
 pub fn limit_pack(input: TokenStream) -> TokenStream {
     lp::limit_pack(input)
+}
+
+/// 包含 AsSqlModel 中的字段赋值部分, 在非 sql 中使用
+#[proc_macro_derive(QuickAssign)]
+pub fn quick_assign(input: TokenStream) -> TokenStream {
+    qa::quick_assign(input)
 }
