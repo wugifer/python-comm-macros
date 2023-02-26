@@ -49,14 +49,14 @@ pub fn limit_pack(input: TokenStream) -> TokenStream {
 
             let field_to_limit_obj = map_fields(&fields, |(_i, ident, _ty, _last)| {
                 quote!(
-                    (stringify!(#ident).to_limit_obj(), self.#ident.to_limit_obj()),
+                    (stringify!(#ident).to_limit_obj(max), self.#ident.to_limit_obj(max)),
                 )
             });
 
             // 汇总代码
             let result = quote!(
                 impl python_comm::use_limit_pack::LimitPackAble for #struct_ident {
-                    fn to_limit_obj(&self) -> python_comm::use_limit_pack::LimitObj {
+                    fn to_limit_obj(&self, max: usize) -> python_comm::use_limit_pack::LimitObj {
                         python_comm::use_limit_pack::LimitObj::new_dict(
                             vec![
                                 #field_to_limit_obj
