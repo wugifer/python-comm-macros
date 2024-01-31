@@ -1,6 +1,6 @@
 use {
     proc_macro::TokenStream,
-    proc_macro2::TokenStream as TokenStream2,
+    proc_macro2::{Span, TokenStream as TokenStream2},
     quote::{quote, ToTokens},
     std::{collections::HashMap, iter::FromIterator},
     syn::{
@@ -82,6 +82,7 @@ pub fn as_sql_model(input: TokenStream) -> TokenStream {
     let make_fields_v = table.make_fields_v(true);
     let make_fields_vi = table.make_fields_v(false);
     let table_name = table.name.to_string();
+    let who = Ident::new(&table.who, Span::call_site());
 
     let impl_ast = quote!(
         impl #struct_ident {
@@ -106,10 +107,10 @@ pub fn as_sql_model(input: TokenStream) -> TokenStream {
                 #make_fields_eei
             }
 
-            /// 返回加锁的 DbPool, 注意类名写死了, 使用者需命名并引入 WhoCreateDbPool
+            /// 返回加锁的 DbPool, 使用者需命名并引入 WhoCreateDbPool 或 who 属性指定的类名
             #[auto_func_name]
             fn lock() -> Result<std::sync::MutexGuard<'static, python_comm::use_sql::DbPool>, python_comm::use_m::MoreError> {
-                WhoCreateDbPool::lock().m(m!(__func__))
+                #who::lock().m(m!(__func__))
             }
 
             fn make_create_table() -> &'static str {
@@ -248,6 +249,7 @@ impl Column {
 
 struct Table {
     name: String,         // table 名
+    who: String,          // WhoCreateDbPool 类名
     columns: Vec<Column>, // 字段
 }
 
@@ -272,21 +274,23 @@ impl Table {
     }
 
     /// 从 table meta 中解析属性
-    fn extract_table_meta(meta_items: &Vec<&NestedMeta>) -> String {
+    fn extract_table_meta(meta_items: &Vec<&NestedMeta>) -> (String, String) {
         let mut name = "unknown_table_name".to_string();
+        let mut who = "WhoCreateDbPool".to_string();
 
         for meta_item in meta_items {
             if let NestedMeta::Meta(ref item) = **meta_item {
                 if let Meta::NameValue(MetaNameValue { ref path, ref lit, .. }) = *item {
                     match path.get_ident().unwrap().to_string().as_ref() {
                         "name" => name = lit_to_string(lit).unwrap_or_default(),
+                        "who" => who = lit_to_string(lit).unwrap_or_default(),
                         _ => {}
                     }
                 }
             }
         }
 
-        name
+        (name, who)
     }
 
     /// 快速设置每个字段
@@ -459,6 +463,7 @@ impl Table {
     fn new() -> Self {
         Self {
             name: String::new(),
+            who: "WhoCreateDbPool".to_string(),
             columns: Vec::new(),
         }
     }
@@ -473,7 +478,7 @@ impl Table {
             {
                 match path.get_ident().unwrap().to_string().as_ref() {
                     "table" => {
-                        self.name = Table::extract_table_meta(&nested.iter().collect());
+                        (self.name, self.who) = Table::extract_table_meta(&nested.iter().collect());
                     }
                     _ => {}
                 }
