@@ -9,7 +9,7 @@ fn test0() {}
 #[allow(unused_variables)]
 #[auto_func_name]
 fn test3() {
-    println!("{}", __func__);
+    println!("{}", fname);
     let a: i32 = 0;
 }
 

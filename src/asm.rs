@@ -90,7 +90,7 @@ pub fn as_sql_model(input: TokenStream) -> TokenStream {
             /// 保存
             pub fn create_with(#make_fields_fi) -> Result<Option<u64>, MoreError> {
                 let id = 0;
-                Self {#make_fields_c}.create().m(m!(__func__))
+                Self {#make_fields_c}.create().m(m!(fname))
             }
 
             #make_assign
@@ -110,7 +110,7 @@ pub fn as_sql_model(input: TokenStream) -> TokenStream {
             /// 返回加锁的 DbPool, 使用者需命名并引入 WhoCreateDbPool 或 who 属性指定的类名
             #[auto_func_name]
             fn lock() -> Result<std::sync::MutexGuard<'static, python_comm::use_sql::DbPool>, python_comm::use_m::MoreError> {
-                #who::lock().m(m!(__func__))
+                #who::lock().m(m!(fname))
             }
 
             fn make_create_table() -> &'static str {

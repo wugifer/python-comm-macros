@@ -24,7 +24,7 @@ pub fn as_sql_model(input: TokenStream) -> TokenStream {
     asm::as_sql_model(input)
 }
 
-/// Create a local variable __func__ = "xxx" in fn xxx()
+/// Create a local variable fname = "xxx" in fn xxx()
 ///
 /// ## Bug
 ///
