@@ -13,21 +13,8 @@ where
         fields
             .iter()
             .enumerate()
-            .filter(|x| {
-                !x.1.ident
-                    .as_ref()
-                    .unwrap()
-                    .to_string()
-                    .starts_with("_renames_")
-            })
-            .map(|x| {
-                (
-                    x.0,
-                    x.1.ident.as_ref().unwrap(),
-                    &x.1.ty,
-                    x.0 == fields.len() - 1,
-                )
-            })
+            .filter(|x| !x.1.ident.as_ref().unwrap().to_string().starts_with("_renames_"))
+            .map(|x| (x.0, x.1.ident.as_ref().unwrap(), &x.1.ty, x.0 == fields.len() - 1))
             .map(mapper),
     )
 }
@@ -47,22 +34,27 @@ pub fn limit_pack(input: TokenStream) -> TokenStream {
         if matches!(&fields, Fields::Named(_)) {
             // 通过 map_fields 处理每个字段, 生成特定代码
 
-            let field_to_limit_obj = map_fields(&fields, |(_i, ident, _ty, _last)| {
+            let field_to_limit_str = map_fields(&fields, |(_i, ident, _ty, _last)| {
                 quote!(
-                    (stringify!(#ident).to_limit_obj(max), self.#ident.to_limit_obj(max)),
+                    python_comm::use_limit_pack::ForStruct{
+                        k: stringify!(#ident).to_limit_str(limit),
+                        v: &self.#ident,
+                    },
                 )
             });
 
             // 汇总代码
             let result = quote!(
                 impl python_comm::use_limit_pack::LimitPackAble for #struct_ident {
-                    fn to_limit_obj(&self, max: usize) -> python_comm::use_limit_pack::LimitObj {
-                        python_comm::use_limit_pack::LimitObj::new_dict(
-                            vec![
-                                #field_to_limit_obj
-                            ],
-                            ('(', ')'),
-                        )
+                    fn to_limit_str(&self, limit: &mut Limit) -> String {
+                        limit.push_and_inc();
+                        let data = (
+                            #field_to_limit_str
+                        );
+                        let pair_seq = limit.pop_start();
+                        let text = data.to_limit_str(limit);
+                        limit.pop_end(pair_seq);
+                        format!("{}{}", stringify!(#struct_ident), text)
                     }
                 }
             )
